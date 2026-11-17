@@ -1,0 +1,55 @@
+name: Publish Mini Notes v0.1.0
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - .github/workflows/publish-release-v0.1.0.yml
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download verified Windows installer build
+        uses: actions/download-artifact@v4
+        with:
+          name: Mini-Notes-Windows-Installer
+          run-id: 44008519766
+          github-token: ${{ github.token }}
+          path: release
+
+      - name: Publish GitHub Release v0.1.0
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test -f "release/Mini Notes_0.1.0_x64-setup.exe"
+          cat > release-notes.md <<'EOF'
+          Mini Notes v0.1.0 — initial Windows desktop release.
+
+          Features:
+          - Always-on-top toggle for the notes window.
+          - Rich-text notes, checklists and indentation.
+          - Insert, display, move and resize images within notes.
+          - Automatically save notes locally, with no cloud sign-in required.
+
+          Download and run **Mini Notes_0.1.0_x64-setup.exe** on Windows x64.
+          No Node.js, npm or Rust installation is needed for end users.
+
+          Notes:
+          - This is an early version, compiled successfully in GitHub Actions on Windows.
+          - It has not yet undergone interactive Windows desktop testing.
+          - The installer is not code-signed, so Windows SmartScreen may show an unknown-publisher warning.
+          EOF
+          gh release create v0.1.0 release/*.exe \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Mini Notes v0.1.0" \
+            --notes-file release-notes.md
