@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <title>Mini Notes</title>
+</head>
+<body>
+  <div id="app">
+    <header class="app-header">
+      <button id="btn-sidebar" class="icon-button" title="顯示或隱藏筆記清單" aria-label="顯示或隱藏筆記清單">☰</button>
+      <span class="app-mark">✦</span>
+      <span class="app-name">Mini Notes</span>
+      <span class="header-spacer"></span>
+      <button id="btn-pin" class="pin-button" aria-pressed="true" title="取消永遠置頂"><span id="pin-icon">📌</span><span id="pin-text">已置頂</span></button>
+    </header>
+
+    <div class="workspace">
+      <aside id="sidebar" class="sidebar">
+        <div class="sidebar-head">
+          <span>我的筆記</span>
+          <button id="btn-new" class="add-button" title="建立新筆記" aria-label="建立新筆記">＋</button>
+        </div>
+        <div id="note-list" class="note-list" role="listbox" aria-label="筆記清單"></div>
+        <div class="sidebar-foot">完全離線 · 自動儲存</div>
+      </aside>
+
+      <main class="main-panel">
+        <section class="note-head">
+          <input id="note-title" maxlength="90" placeholder="無標題筆記" aria-label="筆記標題" spellcheck="false">
+          <button id="btn-delete" class="icon-button danger" title="刪除這篇筆記" aria-label="刪除這篇筆記">🗑</button>
+        </section>
+        <div class="editor-toolbar" role="toolbar" aria-label="文字格式">
+          <button data-command="task" title="核取方塊（Ctrl+Shift+9）" aria-label="核取方塊">☑ <span>待辦</span></button>
+          <button data-command="bold" title="粗體（Ctrl+B）" aria-label="粗體"><strong>B</strong></button>
+          <button data-command="italic" title="斜體（Ctrl+I）" aria-label="斜體"><em>I</em></button>
+          <span class="tool-separator"></span>
+          <button data-command="bullet" title="項目清單" aria-label="項目清單">☷</button>
+          <button data-command="image" title="插入圖片" aria-label="插入圖片">▧ <span>圖片</span></button>
+          <input type="file" id="file-input" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp" multiple hidden>
+        </div>
+        <div id="editor-scroll" class="editor-scroll">
+          <div id="editor" aria-label="筆記內容"></div>
+        </div>
+        <footer class="status-bar">
+          <span id="save-status" role="status">準備就緒</span>
+          <span class="status-hint">Tab = 4 格 · Space = 1 格</span>
+        </footer>
+      </main>
+    </div>
+  </div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
