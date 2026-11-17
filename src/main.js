@@ -4,12 +4,13 @@ import { TaskItem, TaskList } from '@tiptap/extension-list';
 import { Image } from '@tiptap/extension-image';
 import { Placeholder } from '@tiptap/extension-placeholder';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { allNotes, deleteNote, openDatabase, saveNote } from './storage';
+import { allNotes, deleteNote, openDatabase, saveNote, storeImage, loadSettings, saveSettings } from './storage';
 import './style.css';
 
 const $ = (selector) => document.querySelector(selector);
 const inTauri = typeof window.__TAURI_INTERNALS__ !== 'undefined';
 const pending = new Map();
+const writeQueues = new Map();
 const state = {
   notes: [],
   activeId: null,
@@ -54,8 +55,12 @@ function setStatus(message, error = false) {
 
 async function writeNote(note) {
   try {
-    // Store a snapshot to avoid later edits changing an in-flight record.
-    await saveNote(structuredClone(note));
+    // Serialize by note ID so older writes cannot overwrite newer edits.
+    const snapshot = structuredClone(note);
+    const previous = writeQueues.get(note.id) ?? Promise.resolve();
+    const next = previous.catch(() => {}).then(() => saveNote(snapshot));
+    writeQueues.set(note.id, next);
+    try { await next; } finally { if (writeQueues.get(note.id) === next) writeQueues.delete(note.id); }
     if (note.id === state.activeId) setStatus('✓ 已自動儲存');
   } catch (error) {
     console.error('Save failed:', error);
@@ -121,6 +126,7 @@ async function selectNote(id) {
   }
   state.activeId = id;
   localStorage.setItem('mini_notes_active', id);
+  persistSettings();
   const note = currentNote();
   state.settingContent = true;
   $('#note-title').value = note.title;
@@ -179,6 +185,7 @@ async function updatePin(pinned) {
   }
   state.pinned = pinned;
   localStorage.setItem('mini_notes_pinned', String(pinned));
+  persistSettings();
   renderPin();
   if (!inTauri) setStatus('瀏覽器預覽：置頂功能僅在 Windows 程式中有效');
 }
@@ -187,6 +194,28 @@ function renderSidebar() {
   $('#sidebar').classList.toggle('collapsed', state.collapsed);
   $('#btn-sidebar').setAttribute('aria-expanded', String(!state.collapsed));
 }
+
+function persistSettings() {
+  if (!inTauri) return;
+  void saveSettings({
+    pinned: state.pinned,
+    collapsed: state.collapsed,
+    activeId: state.activeId,
+  }).catch((error) => console.error('Settings save failed:', error));
+}
+
+const StoredImage = Image.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      storageKey: {
+        default: null,
+        parseHTML: (element) => element.getAttribute('data-mini-storage'),
+        renderHTML: (attributes) => attributes.storageKey ? { 'data-mini-storage': attributes.storageKey } : {},
+      },
+    };
+  },
+});
 
 const TabIndent = Extension.create({
   name: 'tabIndent',
@@ -240,12 +269,13 @@ async function insertImages(files, pos) {
     try {
       setStatus('正在匯入圖片…');
       const src = await fileAsImageData(file);
-      const node = { type: 'image', attrs: { src, alt: file.name || '圖片' } };
+      const storageKey = await storeImage(src);
+      const node = { type: 'image', attrs: { src, alt: file.name || '圖片', storageKey } };
       if (typeof pos === 'number') {
         state.editor.chain().focus().insertContentAt(pos, node).run();
         pos += 1;
       } else {
-        state.editor.chain().focus().setImage({ src, alt: file.name || '圖片' }).run();
+        state.editor.chain().focus().insertContent(node).run();
       }
     } catch (error) {
       setStatus(`圖片匯入失敗：${error.message}`, true);
@@ -260,7 +290,7 @@ function initEditor() {
       StarterKit,
       TaskList,
       TaskItem.configure({ nested: true }),
-      Image.configure({ inline: false, allowBase64: true, resize: { enabled: true } }),
+      StoredImage.configure({ inline: false, allowBase64: true, resize: { enabled: true } }),
       Placeholder.configure({ placeholder: '開始輸入文字、待辦事項或貼上圖片…' }),
       TabIndent,
     ],
@@ -301,6 +331,7 @@ function wireButtons() {
   $('#btn-sidebar').addEventListener('click', () => {
     state.collapsed = !state.collapsed;
     localStorage.setItem('mini_notes_collapsed', String(state.collapsed));
+    persistSettings();
     renderSidebar();
   });
   $('#note-title').addEventListener('input', (event) => {
@@ -343,9 +374,15 @@ async function main() {
   try {
     initEditor();
     wireButtons();
+    await openDatabase();
+    const settings = await loadSettings();
+    if (settings) {
+      state.pinned = settings.pinned !== false;
+      state.collapsed = settings.collapsed === true;
+      if (typeof settings.activeId === 'string') localStorage.setItem('mini_notes_active', settings.activeId);
+    }
     renderSidebar();
     renderPin();
-    await openDatabase();
     state.notes = await allNotes();
     if (!state.notes.length) {
       const note = createNote('我的第一篇筆記', firstContent());

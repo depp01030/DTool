@@ -5,6 +5,11 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
-    "core:window:allow-set-always-on-top"
+    "core:window:allow-set-always-on-top",
+    "fs:default",
+    "fs:allow-app-read-recursive",
+    "fs:allow-app-write-recursive",
+    "fs:allow-app-meta-recursive",
+    "fs:scope-app-recursive"
   ]
 }

@@ -1,63 +1,58 @@
-# Mini Notes v0.1 — Windows 輕量待辦＋筆記
+# Mini Notes v0.2.0 — Portable Windows note widget
 
-一個小型、完全離線的 Windows 桌面小工具，使用 JavaScript、Tiptap 及 Tauri 2。
+A lightweight, offline Windows desktop note / todo app built with Tauri 2 + Tiptap 3 + vanilla JavaScript.
 
-## 功能
+## Download and run (no installation)
 
-- 視窗右上角「📌 已置頂／未置頂」可隨時切換永遠置頂；重新開啟會記住設定。
-- 小筆記、多筆切換、修改標題、新增及刪除。
-- 使用待辦 Checkbox、粗體、斜體、一般項目清單。
-- 在一般段落中：`Tab` 插入四個不換行空格，`Space` 插入一般一格空白。
-- 待辦清單中：`Tab` / `Shift+Tab` 用來增加／減少巢狀縮排。
-- 插圖：`Ctrl+V`、工具列「圖片」、從桌面拖入圖片。Tauri 視窗已設定 `dragDropEnabled: false`，讓 Windows WebView2 接收 HTML5 Drop 事件。
-- 編輯器中的圖片會直接顯示，可以拖到其他段落，並用角落控制點調整大小。
-- 自動儲存至本機 IndexedDB（與程式一起由 WebView2 管理），不需要網路與帳號。
-- 圖片會轉為 WebP（最長邊上限 1600 px）並嵌在筆記中保存。GIF 維持原格式。
+Download **Mini-Notes-v0.2.0-Portable-Windows-x64.zip** from [GitHub Releases](https://github.com/depp01030/DTool/releases), extract the entire archive into a writable folder (for example Desktop), then double-click **Mini Notes.exe**.
 
-## Windows 執行方式
+Do **not** run the executable from inside the ZIP, and do **not** place it under `C:\Program Files`: the portable edition stores user data next to the executable.
 
-首次開發需要：
+Expected folder structure after first run:
 
-1. Node.js 20+；
-2. Rust (`rustup`，採 MSVC target)；
-3. Visual Studio 2022 C++ Build Tools，安裝「Desktop development with C++」；
-4. Microsoft Edge WebView2 Runtime（Windows 11 一般已預裝）。
+```text
+Mini Notes/
+  Mini Notes.exe
+  data/
+    notes/
+      <note-id>.json
+      <note-id>.json.bak
+    images/
+      <image-id>.webp
+      <image-id>.png
+    settings.json
+    EBWebView/
+```
 
-在此資料夾開啟 PowerShell：
+The `data/` directory also holds the WebView2 local profile and cache. Keep the **whole folder** when moving between computers. Back up the entire `data/` directory regularly.
+
+This is a Windows x64 executable, **not** the NSIS installer. No Node.js, npm or Rust setup is required for end users. A compatible Microsoft Edge WebView2 Runtime is required (usually available on Windows 11).
+
+## Features
+
+- Toggle always-on-top from the app header (remembers the state).
+- Multiple notes, quick checklists, bold/italic/bullets.
+- Tab adds four spaces in normal paragraphs; TaskList Tab / Shift+Tab indent nested items.
+- Paste or drag image files into the editor; move and resize inline image blocks.
+- Offline auto-save.
+- Stores each note separately as JSON, image bytes as image files, and preferences as JSON.
+- No external cloud login or network sync.
+
+## Previous installed version v0.1.0 — important migration caveat
+
+**Do not uninstall the old v0.1.0 app or clear its WebView2 data if you still need its notes.**
+v0.1.0 stored note and embedded image data in a *different* IndexedDB user profile under `%LOCALAPPDATA%`. The portable v0.2.0 profile is now under its own `data/` folder. The new portable build therefore **cannot automatically discover the installed v0.1.0 notes**. They remain untouched in the old profile; migration/export from that legacy location is not included in this release.
+
+Moving between **portable** installations from v0.2.0 onward: copy the entire extracted Mini Notes folder, including `data/`.
+
+## Development
 
 ```powershell
 npm install
 npm run tauri dev
+npm run tauri build -- --no-bundle --config src-tauri/tauri.portable.conf.json
 ```
 
-建立安裝用 EXE：
+The portable-only `appDirectoriesOverride: "./data"` config is deliberately separate from the installer config. All app data stays inside its private dedicated subfolder. Image files are stored in `data/images/`, not as Base64 in JSON.
 
-```powershell
-npm run tauri build
-```
-
-輸出通常位於：`src-tauri\target\release\bundle\nsis\`。
-
-也可以用 `npm run dev` 先在瀏覽器預覽編輯功能，但瀏覽器不能真正置頂；置頂必須用 `npm run tauri dev` 開啟桌面版本。
-
-## 資料保存與第一版限制
-
-- 使用 WebView2 的 IndexedDB，資料會保存在本機**應用程式 WebView 的使用者資料目錄**，不會上傳。
-- 此版未提供匯入/匯出或雲端同步。重要筆記請勿只保留唯一份本機副本；正式使用前建議加入匯出/備份。
-- 刪除筆記目前無垃圾桶，請審慎操作。
-- 圖片可以在**同一篇筆記內的段落之間移動與縮放**，不是自由浮動到任意 X/Y 座標。
-- 大量高解析度圖片會增加 IndexedDB 容量與編輯器記憶體使用；V2 建議改為獨立的影像檔案儲存。
-- 沒有實作系統匣、提醒通知、桌面小工具自動貼邊、全域搜尋和資料庫；刻意保持最小化。
-- 這是可編譯的原始碼範本，尚未在真實 Windows 裝置建置或驗證。Windows 的 Tauri exe 無法在目前的 Linux 環境中直接產生。
-
-## 技術實作
-
-- Windows 桌面封裝：Tauri 2 + WebView2
-- 前端：Vanilla JS + CSS（不用 React）
-- 編輯器：Tiptap 3/ProseMirror
-- 小資料：`localStorage`（置頂和畫面偏好）
-- 筆記與內嵌圖片：`IndexedDB`（每篇筆記 JSON）
-
-公開文件：
-- Tauri: https://v2.tauri.app/
-- Tiptap: https://tiptap.dev/docs/editor/
+GitHub Actions builds an x64 Windows portable ZIP and publishes it as a release. Interactive Windows GUI testing has not yet been completed.

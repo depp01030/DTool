@@ -1,0 +1,90 @@
+name: Build and Release Portable Windows v0.2.0
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'src/**'
+      - 'src-tauri/**'
+      - 'package.json'
+      - '.github/workflows/build-portable.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  portable:
+    runs-on: windows-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Build portable EXE
+        run: npm run tauri build -- --no-bundle --config src-tauri/tauri.portable.conf.json
+
+      - name: Package portable folder
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exe = Get-ChildItem 'src-tauri/target/release' -Filter '*.exe' -File | Select-Object -First 1
+          if (-not $exe) { throw 'Windows executable was not produced.' }
+          $root = 'portable/Mini Notes'
+          New-Item -ItemType Directory -Force "$root/data/notes", "$root/data/images" | Out-Null
+          Copy-Item -LiteralPath $exe.FullName -Destination "$root/Mini Notes.exe"
+          Set-Content -LiteralPath "$root/data/notes/.keep" -Value 'notes saved here' -Encoding UTF8
+          Set-Content -LiteralPath "$root/data/images/.keep" -Value 'images saved here' -Encoding UTF8
+          @'
+          Mini Notes v0.2.0 — Portable edition
+
+          Extract the whole Mini Notes folder to a writable location (Desktop, Documents).
+          Double-click Mini Notes.exe. No installation or npm needed.
+
+          All your notes and pictures are in data/. Back up or transfer the entire folder.
+          A WebView2 runtime is required and is usually already present on Windows 11.
+          This unsigned executable may trigger a SmartScreen publisher warning.
+
+          WARNING: Notes from the v0.1.0 installed edition are still in its separate
+          Windows WebView2/IndexedDB profile. Do not uninstall or erase the old data:
+          this portable release does not automatically import that older profile.
+          '@ | Set-Content -LiteralPath "$root/README.txt" -Encoding UTF8
+          Compress-Archive -Path $root -DestinationPath 'Mini-Notes-v0.2.0-Portable-Windows-x64.zip' -Force
+
+      - name: Upload portable ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: Mini-Notes-v0.2.0-Portable-Windows-x64
+          path: Mini-Notes-v0.2.0-Portable-Windows-x64.zip
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish v0.2.0 GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          @'
+          ## Mini Notes v0.2.0 — Portable Windows edition
+
+          Extract the ZIP and launch **Mini Notes.exe** directly; no installation, npm, Node.js or Rust required.
+
+          - `data/notes/`: separate JSON file per note (plus last-write backup).
+          - `data/images/`: images as real PNG/JPG/WebP/GIF/SVG files.
+          - `data/settings.json`: window and UI preferences.
+          - `data/EBWebView/`: portable WebView2 profile and cache.
+          - Copy the entire folder to transfer notes and images to another PC.
+
+          **Important:** existing notes from the *installed* v0.1.0 edition are stored in a different Windows IndexedDB profile and are **not automatically migrated**. Keep the old app and its data until a migration workflow is available.
+
+          Windows x64; WebView2 runtime required (typically preinstalled on Windows 11). Unsigned executable; SmartScreen may warn. Windows build verified through GitHub Actions; interactive desktop functionality still needs real-device testing.
+          '@ | Set-Content -LiteralPath 'release-notes.md' -Encoding UTF8
+          gh release create v0.2.0 'Mini-Notes-v0.2.0-Portable-Windows-x64.zip' --repo $env:GITHUB_REPOSITORY --title 'Mini Notes v0.2.0 (Portable Windows)' --notes-file release-notes.md
