@@ -1,3 +1,11 @@
+## Mini Notes v0.3.1 — Quick New Note
+
+The editing pane now includes a persistent **＋ 新筆記** button next to the note title and delete button. It works while the sidebar is hidden. You can also press **Ctrl+N** to create a new note.
+
+Download the portable Windows x64 ZIP from [GitHub Releases](https://github.com/depp01030/DTool/releases/tag/v0.3.1), extract it, and run `Mini Notes.exe`. When upgrading from v0.3.0, **keep your existing `data/` folder intact**; you can replace only the executable with the new one.
+
+---
+
 ## Mini Notes v0.3.0 (Portable Windows)
 
 Double-click any image inside a note to open an independent image viewer. Use the mouse wheel to zoom, drag to pan, **Fit** to fit the image to the window, **100%** to inspect pixels, and **Esc** to close. The viewer reuses one window when switching pictures. New pictures are stored at their original resolution in `data/images/`; resizing inside a note affects only the display size. Pictures inserted in v0.2.0 may already have been compressed and cannot be restored to a higher original resolution.

@@ -1,4 +1,4 @@
-name: Build and Release Portable Windows v0.3.0
+name: Build and Release Portable Windows v0.3.1
 
 on:
   push:
@@ -7,6 +7,7 @@ on:
       - 'src/**'
       - 'src-tauri/**'
       - 'package.json'
+      - 'index.html'
       - 'viewer.html'
       - 'vite.config.js'
       - '.github/workflows/build-portable.yml'
@@ -46,7 +47,7 @@ jobs:
           Set-Content -LiteralPath "$root/data/notes/.keep" -Value 'notes saved here' -Encoding UTF8
           Set-Content -LiteralPath "$root/data/images/.keep" -Value 'images saved here' -Encoding UTF8
           @'
-          Mini Notes v0.3.0 — Portable edition
+          Mini Notes v0.3.1 — Portable edition
 
           Extract the whole Mini Notes folder to a writable location (Desktop, Documents).
           Double-click Mini Notes.exe. No installation or npm needed.
@@ -59,28 +60,29 @@ jobs:
           Windows WebView2/IndexedDB profile. Do not uninstall or erase the old data:
           this portable release does not automatically import that older profile.
           '@ | Set-Content -LiteralPath "$root/README.txt" -Encoding UTF8
-          Compress-Archive -Path $root -DestinationPath 'Mini-Notes-v0.3.0-Portable-Windows-x64.zip' -Force
+          Compress-Archive -Path $root -DestinationPath 'Mini-Notes-v0.3.1-Portable-Windows-x64.zip' -Force
 
       - name: Upload portable ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: Mini-Notes-v0.3.0-Portable-Windows-x64
-          path: Mini-Notes-v0.3.0-Portable-Windows-x64.zip
+          name: Mini-Notes-v0.3.1-Portable-Windows-x64
+          path: Mini-Notes-v0.3.1-Portable-Windows-x64.zip
           if-no-files-found: error
           retention-days: 30
 
-      - name: Publish v0.3.0 GitHub Release
+      - name: Publish v0.3.1 GitHub Release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           @'
-          ## Mini Notes v0.3.0 — Portable Windows edition
+          ## Mini Notes v0.3.1 — Portable Windows edition
 
           Extract the ZIP and launch **Mini Notes.exe** directly; no installation, npm, Node.js or Rust required.
 
           - `data/notes/`: separate JSON file per note (plus last-write backup).
           - `data/images/`: original-resolution images saved as real PNG/JPG/WebP/GIF/SVG files.
+          - Always-visible New Note button above the editor (also Ctrl+N); works when the sidebar is collapsed.
           - Double-click a note image to open the separate zoom/pan viewer (Fit, 100%, mouse wheel).
           - New images are no longer downscaled to 1600px. Previously reduced images cannot regain lost detail.
           - `data/settings.json`: window and UI preferences.
@@ -91,4 +93,4 @@ jobs:
 
           Windows x64; WebView2 runtime required (typically preinstalled on Windows 11). Unsigned executable; SmartScreen may warn. Windows build verified through GitHub Actions; interactive desktop functionality still needs real-device testing.
           '@ | Set-Content -LiteralPath 'release-notes.md' -Encoding UTF8
-          gh release create v0.3.0 'Mini-Notes-v0.3.0-Portable-Windows-x64.zip' --repo $env:GITHUB_REPOSITORY --title 'Mini Notes v0.3.0 (Portable Windows)' --notes-file release-notes.md
+          gh release create v0.3.1 'Mini-Notes-v0.3.1-Portable-Windows-x64.zip' --repo $env:GITHUB_REPOSITORY --title 'Mini Notes v0.3.1 (Portable Windows)' --notes-file release-notes.md

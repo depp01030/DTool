@@ -364,6 +364,13 @@ function initEditor() {
 
 function wireButtons() {
   $('#btn-new').addEventListener('click', () => void addNote());
+  $('#btn-new-main').addEventListener('click', () => void addNote());
+  window.addEventListener('keydown', (event) => {
+    if (event.ctrlKey && !event.altKey && !event.shiftKey && !event.metaKey && event.key.toLowerCase() === 'n') {
+      event.preventDefault();
+      void addNote();
+    }
+  });
   $('#btn-delete').addEventListener('click', () => void removeActiveNote());
   $('#btn-pin').addEventListener('click', () => void updatePin(!state.pinned));
   $('#btn-sidebar').addEventListener('click', () => {

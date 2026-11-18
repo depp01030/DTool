@@ -60,6 +60,10 @@ button:focus-visible, input:focus-visible { outline: 2px solid #8d9caf; outline-
 .note-head { padding: 19px 22px 8px; display: flex; align-items: center; gap: 8px; }
 #note-title { min-width: 0; flex: 1; font-size: 22px; font-weight: 750; color: #343839; border: 0; outline: 0; background: transparent; }
 #note-title::placeholder { color: #bcb6a9; }
+.new-note-button { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; gap: 3px; min-height: 31px; border: 1px solid #e3dfd7; border-radius: 7px; background: #f7f5ee; color: #555c56; padding: 3px 10px; font-size: 12px; font-weight: 650; white-space: nowrap; }
+.new-note-button:hover { background: #ebe8dd; border-color: #d7d0c4; color: #252e27; }
+.new-note-symbol { font-size: 19px; font-weight: 500; line-height: 1; }
+.new-note-button:focus-visible { outline: 2px solid #8d9caf; outline-offset: 2px; }
 .danger { color: #a19d96; font-size: 19px; }
 .danger:hover { color: #b4524e; background: #fff0ec; }
 .editor-toolbar {
@@ -100,6 +104,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid #8d9caf; outline-
   .sidebar { width: 126px; min-width: 126px; }
   .note-head { padding: 15px 14px 8px; }
   #note-title { font-size: 19px; }
+  .new-note-button { width: 31px; padding: 0; }
+  .new-note-label { display: none; }
   .editor-scroll { padding: 17px 15px 36px; }
   .status-hint { display: none; }
 }
