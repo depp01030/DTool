@@ -1,4 +1,4 @@
-name: Build and Release Portable Windows v0.3.1
+name: Build Portable Windows (Release Manually)
 
 on:
   push:
@@ -70,7 +70,8 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Publish v0.3.1 GitHub Release
+      - name: Publish v0.3.1 GitHub Release (manual only)
+        if: github.event_name == 'workflow_dispatch'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
