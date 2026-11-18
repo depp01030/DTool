@@ -6,7 +6,7 @@ import { Placeholder } from '@tiptap/extension-placeholder';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { emitTo } from '@tauri-apps/api/event';
-import { allNotes, deleteNote, openDatabase, saveNote, storeImage, loadSettings, saveSettings } from './storage';
+import { allNotes, deleteNote, openDatabase, saveNote, storeImage, loadSettings, saveSettings, getRecoveryMessages } from './storage';
 import './style.css';
 
 const $ = (selector) => document.querySelector(selector);
@@ -49,6 +49,12 @@ function currentNote() {
   return state.notes.find((note) => note.id === state.activeId);
 }
 
+function errorText(error) {
+  if (error instanceof Error) return error.message || String(error);
+  if (typeof error === 'string') return error;
+  try { return JSON.stringify(error) || String(error); } catch { return String(error); }
+}
+
 function setStatus(message, error = false) {
   const element = $('#save-status');
   element.textContent = message;
@@ -66,7 +72,7 @@ async function writeNote(note) {
     if (note.id === state.activeId) setStatus('✓ 已自動儲存');
   } catch (error) {
     console.error('Save failed:', error);
-    setStatus('儲存失敗：請檢查本機磁碟空間', true);
+    setStatus('儲存失敗：' + errorText(error), true);
   }
 }
 
@@ -438,10 +444,11 @@ async function main() {
     const initial = state.notes.find((note) => note.id === remembered)?.id ?? state.notes[0].id;
     await selectNote(initial);
     await updatePin(state.pinned);
+    if (getRecoveryMessages().length) setStatus('已從備份/暫存檔復原筆記，請先備份 data 資料夾');
     if (!inTauri) setStatus('瀏覽器預覽模式 · 置頂功能只在桌面程式生效');
   } catch (error) {
     console.error(error);
-    setStatus(`初始化失敗：${error.message}`, true);
+    setStatus(`初始化失敗：${errorText(error)}`, true);
   }
 }
 

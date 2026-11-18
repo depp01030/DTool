@@ -105,30 +105,67 @@ async function portableSave(note) {
   const temporary = `${path}.tmp`;
   await writeTextFile(temporary, JSON.stringify(saved, null, 2), options);
   if (await exists(path, options)) {
+    // Keep a previous generation as a recovery point until replacement succeeds.
     await copyFile(path, `${path}.bak`, { fromPathBaseDir: baseDir, toPathBaseDir: baseDir });
-    await remove(path, options);
   }
-  await rename(temporary, path, { fromPathBaseDir: baseDir, toPathBaseDir: baseDir });
+  // rename() accepts oldPathBaseDir/newPathBaseDir, NOT copyFile's options.
+  // Do not remove the old JSON first. If rename fails, both it and .tmp remain.
+  await rename(temporary, path, { oldPathBaseDir: baseDir, newPathBaseDir: baseDir });
+}
+
+const recoveryMessages = [];
+export function getRecoveryMessages() {
+  return [...recoveryMessages];
 }
 
 async function portableNotes() {
   await ensureFolders();
-  const results = [];
+  recoveryMessages.length = 0;
+  const grouped = new Map();
+  const filePattern = /^([a-zA-Z0-9_-]{1,90})\.json(\.tmp|\.bak)?$/;
+
   for (const entry of await readDir('notes', options)) {
-    if (!entry.isFile || !entry.name.endsWith('.json')) continue;
-    const id = entry.name.slice(0, -5);
-    if (!FILE_ID.test(id)) continue;
-    const path = `notes/${entry.name}`;
-    let json;
-    try {
-      json = JSON.parse(await readTextFile(path, options));
-    } catch (error) {
-      const backup = `${path}.bak`;
-      if (!(await exists(backup, options))) throw new Error(`筆記 ${id} 讀取失敗：${error}`);
-      json = JSON.parse(await readTextFile(backup, options));
+    if (!entry.isFile) continue;
+    const match = filePattern.exec(entry.name);
+    if (!match) continue;
+    if (!grouped.has(match[1])) grouped.set(match[1], new Set());
+    grouped.get(match[1]).add(entry.name);
+  }
+
+  const results = [];
+  for (const [id, names] of grouped) {
+    // v0.2.0 used the wrong rename() base directory options. Its pending
+    // notes may remain in .json.tmp with no .json at all.
+    const candidates = [];
+    const errors = [];
+    for (const [suffix, priority] of [['.json', 0], ['.json.tmp', 1], ['.json.bak', 2]]) {
+      const name = id + suffix;
+      if (!names.has(name)) continue;
+      try {
+        const json = JSON.parse(await readTextFile('notes/' + name, options));
+        if (!json || json.id !== id || !json.content || json.content.type !== 'doc') {
+          throw new Error('Invalid note ID or editor content');
+        }
+        candidates.push({ name, json, priority, updatedAt: Number(json.updatedAt) || 0 });
+      } catch (error) {
+        errors.push(name + ': ' + String(error));
+      }
     }
-    if (json.id !== id) throw new Error(`筆記 ID 不符：${id}`);
-    results.push(await hydrateNote(json));
+
+    if (!candidates.length) {
+      // Never overwrite or discard files that we cannot read.
+      throw new Error('筆記 ' + id + ' 無法讀取。請備份 data/notes：' + errors.join('；'));
+    }
+
+    candidates.sort((a, b) => b.updatedAt - a.updatedAt || a.priority - b.priority);
+    const chosen = candidates[0];
+    if (chosen.name !== id + '.json') {
+      const message = '筆記 ' + id + ' 已從 ' + chosen.name + ' 復原（原始檔案保留）';
+      console.warn(message);
+      recoveryMessages.push(message);
+    }
+    if (errors.length) console.warn('Ignored corrupt note versions:', errors);
+    results.push(await hydrateNote(chosen.json));
   }
   return results;
 }
