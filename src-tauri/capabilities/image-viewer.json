@@ -1,0 +1,15 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "image-viewer",
+  "description": "Read-only access to portable images for the separate image preview window",
+  "windows": [
+    "image-viewer"
+  ],
+  "permissions": [
+    "core:default",
+    "core:window:allow-close",
+    "fs:default",
+    "fs:allow-app-read-recursive",
+    "fs:scope-app-recursive"
+  ]
+}

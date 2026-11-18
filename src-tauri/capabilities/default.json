@@ -2,7 +2,9 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Permissions for the main Mini Notes window",
-  "windows": ["main"],
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "core:default",
     "core:window:allow-set-always-on-top",
@@ -10,6 +12,8 @@
     "fs:allow-app-read-recursive",
     "fs:allow-app-write-recursive",
     "fs:allow-app-meta-recursive",
-    "fs:scope-app-recursive"
+    "fs:scope-app-recursive",
+    "core:webview:allow-create-webview-window",
+    "core:window:allow-set-focus"
   ]
 }

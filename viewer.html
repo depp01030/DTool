@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mini Notes - 圖片檢視器</title>
+</head>
+<body>
+  <main id="viewer-app">
+    <header class="toolbar">
+      <span class="label">圖片檢視器</span>
+      <span id="image-size" class="detail"></span>
+      <span class="grow"></span>
+      <button id="zoom-out" title="縮小 (-)">−</button>
+      <strong id="zoom-percent">100%</strong>
+      <button id="zoom-in" title="放大 (+)">+</button>
+      <button id="zoom-fit" class="text-button" title="完整顯示圖片 (F)">適合視窗</button>
+      <button id="zoom-original" class="text-button" title="原始像素 100% (0)">100%</button>
+      <button id="close-viewer" class="text-button" title="關閉圖片 (Esc)">關閉</button>
+    </header>
+    <section id="viewport" aria-label="圖片放大檢視區">
+      <img id="full-image" alt="完整圖片" draggable="false" hidden />
+      <div id="viewer-status" role="status">正在讀取圖片…</div>
+    </section>
+    <footer>滑鼠滾輪縮放 · 左鍵拖曳平移 · F 適合視窗 · 0 原始大小 · Esc 關閉</footer>
+  </main>
+  <script type="module" src="/src/viewer.js"></script>
+</body>
+</html>

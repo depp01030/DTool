@@ -4,6 +4,8 @@ import { TaskItem, TaskList } from '@tiptap/extension-list';
 import { Image } from '@tiptap/extension-image';
 import { Placeholder } from '@tiptap/extension-placeholder';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
+import { emitTo } from '@tauri-apps/api/event';
 import { allNotes, deleteNote, openDatabase, saveNote, storeImage, loadSettings, saveSettings } from './storage';
 import './style.css';
 
@@ -31,7 +33,7 @@ function firstContent() {
       { type: 'paragraph', content: [{ type: 'text', text: '歡迎使用 Mini Notes！可在這裡記錄小筆記與待辦事項。' }] },
       { type: 'taskList', content: [
         { type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph', content: [{ type: 'text', text: '試著勾選這個待辦事項' }] }] },
-        { type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph', content: [{ type: 'text', text: '用 Ctrl+V 貼上圖片，也可以拖曳圖片到筆記裡' }] }] },
+        { type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph', content: [{ type: 'text', text: '用 Ctrl+V 貼上圖片，雙擊圖片可開啟獨立檢視器' }] }] },
       ] },
       { type: 'paragraph', content: [{ type: 'text', text: '一般文字按 Tab 插入四格縮排，按空白鍵插入一格。' }] },
     ],
@@ -237,28 +239,55 @@ const TabIndent = Extension.create({
 
 async function fileAsImageData(file) {
   if (!file.type.startsWith('image/')) throw new Error('只接受圖片檔案');
-  if (file.size > 18 * 1024 * 1024) throw new Error('單張圖片限制 18MB');
-  const source = await new Promise((resolve, reject) => {
+  if (file.size > 32 * 1024 * 1024) throw new Error('單張圖片限制 32MB');
+  // Preserve original bytes/resolution in data/images; only the note display is resized.
+  return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result);
     reader.onerror = () => reject(new Error('無法讀取圖片'));
     reader.readAsDataURL(file);
   });
-  if (file.type === 'image/gif' || file.type === 'image/svg+xml') return source;
-  // Convert large screen captures to WebP to reduce saved note size.
+}
+
+let openingImageViewer = false;
+const imageStoragePattern = /^images\/[a-f0-9-]{36}\.(png|jpg|webp|gif|svg)$/;
+
+async function openFullImage(image) {
+  const key = image.getAttribute('data-mini-storage');
+  if (!inTauri || !key) {
+    if (image.src) window.open(image.src, '_blank', 'noopener');
+    return;
+  }
+  if (!imageStoragePattern.test(key) || openingImageViewer) return;
+  openingImageViewer = true;
   try {
-    const bitmap = await createImageBitmap(file);
-    const maxEdge = 1600;
-    const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-    canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    bitmap.close();
-    const converted = canvas.toDataURL('image/webp', 0.88);
-    return converted.startsWith('data:image/webp') ? converted : source;
-  } catch {
-    return source;
+    const existing = await WebviewWindow.getByLabel('image-viewer');
+    if (existing) {
+      await emitTo('image-viewer', 'mini-notes:show-image', { key });
+      await existing.setFocus();
+      return;
+    }
+    const viewer = new WebviewWindow('image-viewer', {
+      url: 'viewer.html?image=' + encodeURIComponent(key),
+      title: 'Mini Notes - 圖片檢視器',
+      width: 1050,
+      height: 730,
+      minWidth: 450,
+      minHeight: 330,
+      center: true,
+      decorations: true,
+      resizable: true,
+      alwaysOnTop: true,
+    });
+    viewer.once('tauri://error', (event) => {
+      console.error('Image viewer window failed:', event);
+      setStatus('無法開啟圖片檢視器', true);
+    });
+  } catch (error) {
+    console.error(error);
+    setStatus('無法開啟圖片檢視器：' + error.message, true);
+  } finally {
+    openingImageViewer = false;
   }
 }
 
@@ -297,6 +326,15 @@ function initEditor() {
     content: emptyContent(),
     editorProps: {
       attributes: { class: 'tiptap note-content', spellcheck: 'true' },
+      handleDOMEvents: {
+        dblclick(_view, event) {
+          const image = event.target instanceof Element ? event.target.closest('img[data-mini-storage]') : null;
+          if (!image) return false;
+          event.preventDefault();
+          void openFullImage(image);
+          return true;
+        },
+      },
       handlePaste(view, event) {
         const files = [...(event.clipboardData?.files ?? [])].filter((f) => f.type.startsWith('image/'));
         if (!files.length) return false;

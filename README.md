@@ -1,3 +1,11 @@
+## Mini Notes v0.3.0 (Portable Windows)
+
+Double-click any image inside a note to open an independent image viewer. Use the mouse wheel to zoom, drag to pan, **Fit** to fit the image to the window, **100%** to inspect pixels, and **Esc** to close. The viewer reuses one window when switching pictures. New pictures are stored at their original resolution in `data/images/`; resizing inside a note affects only the display size. Pictures inserted in v0.2.0 may already have been compressed and cannot be restored to a higher original resolution.
+
+Keep the whole `Mini Notes` folder together when moving to another Windows PC. Existing `data/` notes and images are preserved when extracting a new version; make a backup first.
+
+---
+
 # Mini Notes v0.2.0 — Portable Windows note widget
 
 A lightweight, offline Windows desktop note / todo app built with Tauri 2 + Tiptap 3 + vanilla JavaScript.
