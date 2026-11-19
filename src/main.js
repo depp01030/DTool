@@ -13,6 +13,8 @@ const $ = (selector) => document.querySelector(selector);
 const inTauri = typeof window.__TAURI_INTERNALS__ !== 'undefined';
 const pending = new Map();
 const writeQueues = new Map();
+const deletingIds = new Set();
+const deletedIds = new Set();
 const state = {
   notes: [],
   activeId: null,
@@ -62,14 +64,19 @@ function setStatus(message, error = false) {
 }
 
 async function writeNote(note) {
+  if (deletedIds.has(note.id) || deletingIds.has(note.id)) return;
   try {
     // Serialize by note ID so older writes cannot overwrite newer edits.
     const snapshot = structuredClone(note);
     const previous = writeQueues.get(note.id) ?? Promise.resolve();
-    const next = previous.catch(() => {}).then(() => saveNote(snapshot));
+    const next = previous.catch(() => {}).then(() => {
+      // The write may have been queued before the user confirmed deletion.
+      if (deletedIds.has(note.id) || deletingIds.has(note.id)) return;
+      return saveNote(snapshot);
+    });
     writeQueues.set(note.id, next);
     try { await next; } finally { if (writeQueues.get(note.id) === next) writeQueues.delete(note.id); }
-    if (note.id === state.activeId) setStatus('✓ 已自動儲存');
+    if (note.id === state.activeId && !deletingIds.has(note.id)) setStatus('✓ 已自動儲存');
   } catch (error) {
     console.error('Save failed:', error);
     setStatus('儲存失敗：' + errorText(error), true);
@@ -77,6 +84,7 @@ async function writeNote(note) {
 }
 
 function scheduleSave(note) {
+  if (deletedIds.has(note.id) || deletingIds.has(note.id)) return;
   if (pending.has(note.id)) clearTimeout(pending.get(note.id));
   setStatus('儲存中…');
   const timeout = setTimeout(() => {
@@ -156,21 +164,34 @@ async function addNote() {
 
 async function removeActiveNote() {
   const note = currentNote();
-  if (!note) return;
-  if (!window.confirm(`確定刪除「${note.title || '無標題筆記'}」？此操作無法復原。`)) return;
+  if (!note || deletingIds.has(note.id) || deletedIds.has(note.id)) return;
+  if (!window.confirm(`確定刪除「${note.title || '無標題筆記'}」？筆記會移到 data/trash，可以手動復原。`)) return;
+  deletingIds.add(note.id);
   const timer = pending.get(note.id);
   if (timer) clearTimeout(timer);
   pending.delete(note.id);
-  state.notes = state.notes.filter((item) => item.id !== note.id);
-  await deleteNote(note.id);
-  if (state.notes.length === 0) {
-    const replacement = createNote();
-    state.notes.push(replacement);
-    await saveNote(replacement);
+  try {
+    // Wait for an already-running save. Otherwise it may recreate a deleted .json.
+    const queued = writeQueues.get(note.id);
+    if (queued) await queued.catch((error) => console.warn('Pending save failed before deletion:', error));
+    const result = await deleteNote(note.id);
+    deletedIds.add(note.id);
+    state.notes = state.notes.filter((item) => item.id !== note.id);
+    if (state.notes.length === 0) {
+      const replacement = createNote();
+      state.notes.push(replacement);
+      await saveNote(replacement);
+    }
+    const next = [...state.notes].sort((a, b) => b.updatedAt - a.updatedAt)[0];
+    state.activeId = null;
+    await selectNote(next.id);
+    setStatus(result?.warnings?.length ? '已刪除筆記，但部分備份未能移動；請檢查 data/notes' : '✓ 筆記已移到 data/trash');
+  } catch (error) {
+    console.error('Delete failed:', error);
+    setStatus('刪除失敗：' + errorText(error), true);
+  } finally {
+    deletingIds.delete(note.id);
   }
-  const next = [...state.notes].sort((a, b) => b.updatedAt - a.updatedAt)[0];
-  state.activeId = null;
-  await selectNote(next.id);
 }
 
 function renderPin() {

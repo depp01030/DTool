@@ -7,6 +7,7 @@ const DB_NAME = 'mini_notes_v1';
 const DB_VERSION = 1;
 const FILE_ID = /^[a-zA-Z0-9_-]{1,90}$/;
 const IMAGE_KEY = /^images\/[a-f0-9-]{36}\.(png|jpg|webp|gif|svg)$/;
+const DELETED_NOTE = /^([a-zA-Z0-9_-]{1,90})\.json\.deleted$/;
 let cachedDb;
 let folderReady;
 const imageCache = new Map();
@@ -122,10 +123,16 @@ async function portableNotes() {
   await ensureFolders();
   recoveryMessages.length = 0;
   const grouped = new Map();
+  const deletedIds = new Set();
   const filePattern = /^([a-zA-Z0-9_-]{1,90})\.json(\.tmp|\.bak)?$/;
 
   for (const entry of await readDir('notes', options)) {
     if (!entry.isFile) continue;
+    const marker = DELETED_NOTE.exec(entry.name);
+    if (marker) {
+      deletedIds.add(marker[1]);
+      continue;
+    }
     const match = filePattern.exec(entry.name);
     if (!match) continue;
     if (!grouped.has(match[1])) grouped.set(match[1], new Set());
@@ -134,6 +141,8 @@ async function portableNotes() {
 
   const results = [];
   for (const [id, names] of grouped) {
+    // A deletion marker always takes precedence over .json/.tmp/.bak recovery.
+    if (deletedIds.has(id)) continue;
     // v0.2.0 used the wrong rename() base directory options. Its pending
     // notes may remain in .json.tmp with no .json at all.
     const candidates = [];
@@ -211,6 +220,10 @@ export async function allNotes() {
   }
   const notes = await portableNotes();
   if (notes.length) return notes;
+  // Never re-import deleted notes from legacy IndexedDB after the last deletion.
+  // The deletion markers also protect notes saved during an interrupted delete.
+  const entries = await readDir('notes', options);
+  if (entries.some((entry) => entry.isFile && DELETED_NOTE.test(entry.name))) return notes;
   // Import legacy IndexedDB only when it is present in the same WebView profile.
   // The portable build deliberately uses a new profile in ./data.
   const previous = await legacyNotes();
@@ -236,11 +249,31 @@ export async function saveNote(note) {
 export async function deleteNote(id) {
   if (inTauri) {
     await ensureFolders();
-    const path = `notes/${validateId(id)}.json`;
-    if (await exists(path, options)) await remove(path, options);
-    const backup = `${path}.bak`;
-    if (await exists(backup, options)) await remove(backup, options);
-    return;
+    const noteId = validateId(id);
+    const path = `notes/${noteId}.json`;
+    // Persist the tombstone BEFORE moving files. Even if the process crashes
+    // mid-delete, portableNotes() will not resurrect a lingering .tmp/.bak.
+    const marker = `${path}.deleted`;
+    await writeTextFile(marker, JSON.stringify({ id: noteId, deletedAt: new Date().toISOString() }), options);
+
+    // Non-destructive delete: move all three possible note versions into trash.
+    // Keeping a recoverable copy is important after the v0.2.0 save regression.
+    const archivedFolder = `trash/notes/${noteId}-${crypto.randomUUID()}`;
+    await mkdir(archivedFolder, { ...options, recursive: true });
+    const failures = [];
+    for (const suffix of ['', '.tmp', '.bak']) {
+      const source = path + suffix;
+      if (!(await exists(source, options))) continue;
+      const destination = `${archivedFolder}/${noteId}.json${suffix}`;
+      try {
+        await copyFile(source, destination, { fromPathBaseDir: baseDir, toPathBaseDir: baseDir });
+        await remove(source, options);
+      } catch (error) {
+        failures.push(`${source}: ${String(error)}`);
+      }
+    }
+    if (failures.length) console.warn('Some deleted-note backups remain in notes (hidden by deletion marker):', failures);
+    return { archivedFolder, warnings: failures };
   }
   const db = await openDatabase();
   return new Promise((resolve, reject) => {
